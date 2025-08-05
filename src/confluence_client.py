@@ -164,3 +164,103 @@ class ConfluenceClient:
         except Exception as e:
             self.logger.error(f"Error accessing {self.rca_space} space: {str(e)}")
             return False
+    
+    def get_rca_content(self, rca_url: str) -> Optional[Dict]:
+        """
+        Retrieve the full content of an RCA document
+        
+        Args:
+            rca_url: URL to the RCA document
+            
+        Returns:
+            Dictionary with page content and metadata, None if failed
+        """
+        try:
+            # Extract page ID from URL
+            # URL formats: 
+            # - https://hingehealth.atlassian.net/wiki/pages/viewpage.action?pageId=123456
+            # - https://hingehealth.atlassian.net/wiki/spaces/RND/pages/123456/title
+            
+            if 'pageId=' in rca_url:
+                page_id = rca_url.split('pageId=')[1].split('&')[0]
+            elif '/pages/' in rca_url:
+                # Extract from the /pages/ID/title format
+                url_parts = rca_url.split('/pages/')
+                if len(url_parts) > 1:
+                    # Get the part after /pages/ and extract the numeric ID
+                    page_part = url_parts[1].split('/')[0]
+                    if page_part.isdigit():
+                        page_id = page_part
+                    else:
+                        self.logger.error(f"Could not extract numeric page ID from URL: {rca_url}")
+                        return None
+                else:
+                    self.logger.error(f"Could not extract page ID from URL: {rca_url}")
+                    return None
+            else:
+                self.logger.error(f"Could not extract page ID from URL: {rca_url}")
+                return None
+            
+            # Get page content
+            page = self.confluence.get_page_by_id(
+                page_id=page_id,
+                expand='body.storage,version,space'
+            )
+            
+            if not page:
+                self.logger.error(f"Could not retrieve page content for ID: {page_id}")
+                return None
+            
+            # Extract relevant information
+            content_data = {
+                'page_id': page_id,
+                'title': page.get('title', ''),
+                'content_html': page.get('body', {}).get('storage', {}).get('value', ''),
+                'version': page.get('version', {}).get('number', 0),
+                'space_key': page.get('space', {}).get('key', ''),
+                'url': rca_url
+            }
+            
+            self.logger.info(f"Successfully retrieved content for page: {content_data['title']}")
+            return content_data
+            
+        except Exception as e:
+            self.logger.error(f"Error retrieving RCA content from {rca_url}: {str(e)}")
+            return None
+    
+    def clean_html_content(self, html_content: str) -> str:
+        """
+        Clean HTML content to extract readable text for LLM analysis
+        
+        Args:
+            html_content: Raw HTML content from Confluence
+            
+        Returns:
+            Cleaned text content
+        """
+        try:
+            from bs4 import BeautifulSoup
+            
+            # Parse HTML
+            soup = BeautifulSoup(html_content, 'html.parser')
+            
+            # Remove script and style elements
+            for script in soup(["script", "style"]):
+                script.decompose()
+            
+            # Get text content
+            text = soup.get_text()
+            
+            # Clean up whitespace
+            lines = (line.strip() for line in text.splitlines())
+            chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+            text = ' '.join(chunk for chunk in chunks if chunk)
+            
+            return text
+            
+        except ImportError:
+            self.logger.warning("BeautifulSoup not available, returning raw HTML")
+            return html_content
+        except Exception as e:
+            self.logger.error(f"Error cleaning HTML content: {str(e)}")
+            return html_content
