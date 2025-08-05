@@ -63,13 +63,14 @@ class RCAQualityAnalyzer:
             'learning_knowledge_sharing': 5
         }
         
-        # Grade boundaries
+        # Recalibrated grade boundaries (more critical - Phase 6)
+        # Target distribution: A=15%, B=30%, C=40%, D=15%
         self.grade_boundaries = {
-            90: QualityGrade.A,
-            80: QualityGrade.B,
-            70: QualityGrade.C,
-            60: QualityGrade.D,
-            0: QualityGrade.F
+            85: QualityGrade.A,  # Raised from 90 - truly exceptional RCAs only
+            72: QualityGrade.B,  # Raised from 80 - good RCAs with minor gaps
+            58: QualityGrade.C,  # Raised from 70 - adequate but needs improvement
+            45: QualityGrade.D,  # Raised from 60 - poor quality, significant gaps
+            0: QualityGrade.F    # Below 45 - inadequate
         }
     
     def analyze_rca_quality(self, content: str, ticket_key: str) -> RCAQualityAssessment:
@@ -265,12 +266,12 @@ class RCAQualityAnalyzer:
         score = 0
         feedback_parts = []
         
-        # Check for timeline section
+        # Check for timeline section (stricter criteria - Phase 6)
         if re.search(r'(?i)timeline', content):
-            score += 4
+            score += 2  # Reduced from 4 - just having a section isn't enough
             feedback_parts.append("Timeline section present")
             
-            # Check for timestamps
+            # Check for timestamps (stricter requirements)
             timestamp_patterns = [
                 r'\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}',  # 2024-01-01 14:30
                 r'\d{1,2}:\d{2}\s+(?:AM|PM|PST|EST|UTC)',  # 2:30 PM PST
@@ -281,14 +282,17 @@ class RCAQualityAnalyzer:
             for pattern in timestamp_patterns:
                 timestamp_count += len(re.findall(pattern, content))
             
-            if timestamp_count >= 5:
-                score += 6
-                feedback_parts.append("Detailed timeline with multiple timestamps")
-            elif timestamp_count >= 2:
-                score += 3
-                feedback_parts.append("Basic timeline with some timestamps")
+            if timestamp_count >= 8:  # Raised from 5 - need more detailed timeline
+                score += 7
+                feedback_parts.append("Comprehensive timeline with detailed timestamps")
+            elif timestamp_count >= 4:  # Raised from 2
+                score += 4
+                feedback_parts.append("Adequate timeline with some timestamps")
+            elif timestamp_count >= 1:
+                score += 2
+                feedback_parts.append("Basic timeline with minimal timestamps")
             else:
-                feedback_parts.append("Timeline lacks sufficient timestamp detail")
+                feedback_parts.append("Timeline lacks timestamp detail")
         else:
             feedback_parts.append("Missing dedicated timeline section")
         
@@ -314,29 +318,36 @@ class RCAQualityAnalyzer:
         score = 0
         feedback_parts = []
         
-        # Check for impact section
+        # Check for impact section (stricter criteria - Phase 6)
         if re.search(r'(?i)impact', content):
-            score += 3
+            score += 1  # Reduced from 3 - section presence is baseline
             feedback_parts.append("Impact section present")
             
-            # Check for user impact quantification
+            # Check for user impact quantification (stricter requirements)
             user_impact_patterns = [
                 r'\d+(?:,\d+)*\s+(?:users?|members?|customers?)',  # 1,200 users
                 r'\d+(?:\.\d+)?%\s+of\s+(?:users?|members?)',      # 15% of users
-                r'(?:all|some|many)\s+(?:users?|members?)'         # all users
             ]
             
-            user_impact_found = False
+            # Quantified impact gets higher scores
+            quantified_impact = False
             for pattern in user_impact_patterns:
                 if re.search(pattern, content, re.IGNORECASE):
-                    user_impact_found = True
+                    quantified_impact = True
                     break
             
-            if user_impact_found:
-                score += 5
-                feedback_parts.append("User impact quantified")
+            # Check for vague impact descriptions (penalize these)
+            vague_patterns = [r'(?:all|some|many|few)\s+(?:users?|members?)']
+            vague_found = any(re.search(pattern, content, re.IGNORECASE) for pattern in vague_patterns)
+            
+            if quantified_impact:
+                score += 6  # Increased reward for specific numbers
+                feedback_parts.append("User impact quantified with specific numbers")
+            elif vague_found:
+                score += 2  # Reduced from previous scoring
+                feedback_parts.append("User impact described but not quantified")
             else:
-                feedback_parts.append("User impact not quantified")
+                feedback_parts.append("User impact not quantified - needs specific numbers")
             
             # Check for business impact
             business_keywords = ['business', 'revenue', 'sla', 'availability', 'downtime', 'cost']
@@ -838,17 +849,34 @@ class RCAQualityAnalyzer:
         return QualityGrade.F
     
     def _generate_overall_feedback(self, total_score: int, grade: QualityGrade, dimensions: List[QualityDimension]) -> str:
-        """Generate overall assessment feedback"""
+        """Generate specific, actionable assessment feedback (Phase 6 enhanced)"""
+        
+        # Find the lowest scoring dimension for specific feedback
+        lowest_dim = min(dimensions, key=lambda d: d.score / d.max_points)
+        highest_dim = max(dimensions, key=lambda d: d.score / d.max_points)
+        
         if grade == QualityGrade.A:
-            return f"Exemplary RCA ({total_score}/100) that demonstrates engineering excellence and should serve as a template for future incident analysis."
+            return f"Exceptional RCA ({total_score}/100). Strongest area: {highest_dim.name}. " \
+                   f"Consider sharing as template. Minor enhancement opportunity: {lowest_dim.name}."
         elif grade == QualityGrade.B:
-            return f"Good quality RCA ({total_score}/100) with strong foundation and only minor improvements needed."
+            return f"Solid RCA ({total_score}/100) with good foundation. " \
+                   f"Strong: {highest_dim.name}. Focus improvement on: {lowest_dim.name}. " \
+                   f"Address: {lowest_dim.gaps[0] if lowest_dim.gaps else 'detail and depth'}."
         elif grade == QualityGrade.C:
-            return f"Adequate RCA ({total_score}/100) that covers basics but has several areas for improvement to reach best practices."
+            critical_gaps = [d.name for d in dimensions if d.score < d.max_points * 0.5]
+            return f"Basic RCA ({total_score}/100) needs enhancement. " \
+                   f"Critical gaps in: {', '.join(critical_gaps[:2])}. " \
+                   f"Priority fix: {lowest_dim.gaps[0] if lowest_dim.gaps else 'missing key elements'}. " \
+                   f"Timeline: This affects incident learning velocity."
         elif grade == QualityGrade.D:
-            return f"Poor quality RCA ({total_score}/100) with significant gaps that undermine its effectiveness for learning and prevention."
+            return f"Substandard RCA ({total_score}/100) requires significant work. " \
+                   f"Major deficiencies: {lowest_dim.name}. " \
+                   f"Immediate action needed: {lowest_dim.gaps[0] if lowest_dim.gaps else 'structured methodology'}. " \
+                   f"Leadership impact: Poor RCA quality affects prevention and learning."
         else:
-            return f"Inadequate RCA ({total_score}/100) that fails to meet basic incident analysis standards and requires major revision."
+            return f"Inadequate RCA ({total_score}/100) fails basic standards. " \
+                   f"Missing fundamentals across multiple areas. " \
+                   f"Requires complete revision focusing on structured methodology, impact quantification, and actionable outcomes."
     
     def _extract_top_strengths(self, dimensions: List[QualityDimension]) -> List[str]:
         """Extract top 3 strengths across all dimensions"""

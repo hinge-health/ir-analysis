@@ -96,14 +96,14 @@ Build a system to pull incident data from Jira and Confluence to analyze company
 - **Option 2**: OpenAI API integration
 - **Option 3**: Local LLM (ollama/llamacpp)
 
-### Phase 5: RCA Quality Assessment & Process Improvement
+### Phase 5: RCA Quality Assessment & Process Improvement ✅ **COMPLETED**
 **Objective**: Evaluate RCA document quality against engineering best practices and provide actionable feedback for process improvement
 **Tasks**:
-1. **Expert RCA Quality Analyzer**: Implement LLM-powered quality assessment using engineering best practices
-2. **Comprehensive Grading System**: Score RCAs on 7 key dimensions (0-100 scale, A-F grades)
-3. **Gap Analysis & Feedback**: Provide specific, actionable improvement recommendations
-4. **Quality Metrics Dashboard**: Generate aggregate quality insights across teams/incident types
-5. **Process Improvement Recommendations**: Identify systemic patterns and suggest RCA process enhancements
+1. **Expert RCA Quality Analyzer**: Implement LLM-powered quality assessment using engineering best practices ✅
+2. **Comprehensive Grading System**: Score RCAs on 7 key dimensions (0-100 scale, A-F grades) ✅
+3. **Gap Analysis & Feedback**: Provide specific, actionable improvement recommendations ✅
+4. **Quality Metrics Dashboard**: Generate aggregate quality insights across teams/incident types ✅
+5. **Process Improvement Recommendations**: Identify systemic patterns and suggest RCA process enhancements ✅
 
 **Quality Assessment Dimensions**:
 - **Timeline & Detection (15 pts)**: Clear incident timeline, detection methods, response efficiency
@@ -115,11 +115,47 @@ Build a system to pull incident data from Jira and Confluence to analyze company
 - **Learning & Knowledge Sharing (5 pts)**: Extractable lessons, knowledge transfer value
 
 **Enhanced CSV Outputs**:
-- **RCA Quality Score**: Numerical assessment (0-100)
-- **RCA Grade**: Letter grade (A, B, C, D, F)
-- **Quality Feedback**: Specific improvement recommendations
-- **Strengths Identified**: What the RCA did exceptionally well
-- **Critical Gaps**: Most important areas for improvement
+- **RCA Quality Score**: Numerical assessment (0-100) ✅
+- **RCA Grade**: Letter grade (A, B, C, D, F) ✅
+- **Quality Feedback**: Specific improvement recommendations ✅
+- **Strengths Identified**: What the RCA did exceptionally well ✅
+- **Critical Gaps**: Most important areas for improvement ✅
+
+**Results**: 91/91 RCA documents assessed, average quality score 90.6/100, grade distribution A=61, B=23, C=7
+
+### Phase 6: Dual-Audience CSV Optimization & Enhanced Analytics
+**Objective**: Optimize CSV structure and analytics for both IC engineers and engineering leadership (CTO-level) with improved scoring calibration and business impact analysis
+**Tasks**:
+1. **Scoring Recalibration**: Implement more critical assessment to achieve realistic grade distribution (target: A=15%, B=30%, C=40%, D=15%)
+2. **Dual-Audience Structure**: Create CSV optimized for both technical teams and executive leadership
+3. **Business Impact Analytics**: Add quantified business impact, customer impact, and revenue estimation columns
+4. **Technical Analysis Enhancement**: Add technical categorization, detection/resolution times, automation opportunities
+5. **Enhanced Feedback System**: Replace generic feedback with specific, actionable recommendations
+6. **Leadership Dashboard Metrics**: Add executive-level KPIs and trend analysis
+
+**New CSV Structure (22 columns)**:
+
+**Core Incident Data (7 columns)**:
+- Ticket_Key, Summary, Priority, Created_Date, Status, Teams_Involved, RCA_Link
+
+**Business Impact Analysis (5 columns)**:
+- Business_Impact_Score (1-10), Customer_Count_Affected, Revenue_Impact_Est, Service_Downtime_Minutes, Severity_Justification
+
+**Technical Analysis (5 columns)**:
+- Root_Cause_Category, Detection_Time_Minutes, Resolution_Time_Minutes, Technical_Debt_Level, Automation_Score (0-5)
+
+**Quality Assessment (5 columns)**:
+- RCA_Quality_Score (recalibrated), RCA_Grade (stricter), Quality_Category_Breakdown, Top_2_Strengths, Top_2_Critical_Gaps
+
+**Enhanced Quality Feedback**:
+- Specific, actionable feedback replacing generic responses
+- Business impact focus for leadership visibility
+- Technical depth analysis for IC engineers
+- Prevention-focused recommendations with ownership
+
+**Leadership KPIs**:
+- Team_RCA_Quality_Trend, Prevention_Success_Rate, Mean_Time_To_Detection_By_Team
+- High_Impact_Incident_Rate, Incident_Learning_Velocity
 
 ## Project Structure
 ```
@@ -167,9 +203,13 @@ ATLASSIAN_API_TOKEN=your-api-token
 - ✅ Generate clean CSV with all required columns including RCA analysis
 - ✅ Successfully analyze ≥90% of available RCA documents with LLM
 - ✅ Extract structured incident summaries, user impact, and root causes
-- 🆕 **Phase 5**: Evaluate RCA quality using expert-level assessment criteria
-- 🆕 **Phase 5**: Generate actionable quality improvement recommendations
-- 🆕 **Phase 5**: Provide aggregate quality metrics and process improvement insights
+- ✅ **Phase 5**: Evaluate RCA quality using expert-level assessment criteria
+- ✅ **Phase 5**: Generate actionable quality improvement recommendations
+- ✅ **Phase 5**: Provide aggregate quality metrics and process improvement insights
+- 🆕 **Phase 6**: Implement dual-audience CSV structure for IC engineers and leadership
+- 🆕 **Phase 6**: Recalibrate quality scoring for realistic grade distribution
+- 🆕 **Phase 6**: Add business impact analysis and technical categorization
+- 🆕 **Phase 6**: Enhance feedback system with specific, actionable recommendations
 - ✅ Handle API errors gracefully with proper logging
 
 ## RCA Content Analysis Implementation
