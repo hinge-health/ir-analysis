@@ -17,6 +17,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from jira_client import JiraClient
 from confluence_client import ConfluenceClient
 from rca_analyzer import RCAAnalyzer
+from rca_quality_analyzer import RCAQualityAnalyzer
 
 def setup_logging():
     """Set up logging configuration"""
@@ -86,7 +87,7 @@ def match_rca_documents(incidents: List[Dict], confluence_client: ConfluenceClie
     logger.info(f"Matched {matched_count}/{len(incidents)} incidents with RCA documents")
     return incidents
 
-def analyze_rca_content(incidents: List[Dict], confluence_client: ConfluenceClient, rca_analyzer: RCAAnalyzer) -> List[Dict]:
+def analyze_rca_content(incidents: List[Dict], confluence_client: ConfluenceClient, rca_analyzer: RCAAnalyzer, quality_analyzer: RCAQualityAnalyzer) -> List[Dict]:
     """Analyze RCA document content and extract insights"""
     logger = logging.getLogger(__name__)
     
@@ -104,6 +105,13 @@ def analyze_rca_content(incidents: List[Dict], confluence_client: ConfluenceClie
         incident['users_impacted'] = 'Not specified'
         incident['root_causes'] = 'Not analyzed'
         incident['analysis_quality'] = 'N/A'
+        
+        # Initialize quality assessment fields with defaults
+        incident['rca_quality_score'] = 0
+        incident['rca_grade'] = 'N/A'
+        incident['quality_feedback'] = 'RCA document not available for quality assessment'
+        incident['strengths_identified'] = 'N/A'
+        incident['critical_gaps'] = 'N/A'
         
         if not rca_url or rca_url == 'Not Found':
             logger.debug(f"No RCA document available for {ticket_key}")
@@ -139,6 +147,23 @@ def analyze_rca_content(incidents: List[Dict], confluence_client: ConfluenceClie
             incident['root_causes'] = '; '.join(analysis_result.root_causes)
             incident['analysis_quality'] = analysis_result.analysis_quality
             
+            # Perform quality assessment if content analysis was successful
+            try:
+                quality_assessment = quality_analyzer.analyze_rca_quality(cleaned_content, ticket_key)
+                
+                # Update incident with quality assessment results
+                incident['rca_quality_score'] = quality_assessment.total_score
+                incident['rca_grade'] = quality_assessment.grade.value
+                incident['quality_feedback'] = quality_assessment.overall_feedback
+                incident['strengths_identified'] = '; '.join(quality_assessment.top_strengths) if quality_assessment.top_strengths else 'None identified'
+                incident['critical_gaps'] = '; '.join(quality_assessment.critical_gaps) if quality_assessment.critical_gaps else 'None identified'
+                
+                logger.debug(f"Quality assessment for {ticket_key}: {quality_assessment.grade.value} ({quality_assessment.total_score}/100)")
+                
+            except Exception as quality_error:
+                logger.warning(f"Quality assessment failed for {ticket_key}: {str(quality_error)}")
+                incident['quality_feedback'] = f'Quality assessment failed: {str(quality_error)}'
+            
             analyzed_count += 1
             logger.debug(f"Successfully analyzed {ticket_key} with {analysis_result.analysis_quality} quality")
             
@@ -172,7 +197,13 @@ def generate_csv_report(incidents: List[Dict], output_file: str) -> None:
             'RCA Summary': incident.get('rca_summary', 'Not analyzed'),
             'Users Impacted': incident.get('users_impacted', 'Not specified'),
             'Root Causes': incident.get('root_causes', 'Not analyzed'),
-            'Analysis Quality': incident.get('analysis_quality', 'N/A')
+            'Analysis Quality': incident.get('analysis_quality', 'N/A'),
+            # New RCA Quality Assessment columns
+            'RCA Quality Score': incident.get('rca_quality_score', 0),
+            'RCA Grade': incident.get('rca_grade', 'N/A'),
+            'Quality Feedback': incident.get('quality_feedback', 'Not assessed'),
+            'Strengths Identified': incident.get('strengths_identified', 'N/A'),
+            'Critical Gaps': incident.get('critical_gaps', 'N/A')
         })
     
     # Create DataFrame and save to CSV
@@ -189,11 +220,26 @@ def generate_csv_report(incidents: List[Dict], output_file: str) -> None:
     medium_quality = len([i for i in incidents if i.get('analysis_quality') == 'medium'])
     low_quality = len([i for i in incidents if i.get('analysis_quality') == 'low'])
     
+    # Quality assessment statistics
+    quality_assessed = len([i for i in incidents if i.get('rca_grade') and i.get('rca_grade') != 'N/A'])
+    grade_a = len([i for i in incidents if i.get('rca_grade') == 'A'])
+    grade_b = len([i for i in incidents if i.get('rca_grade') == 'B'])
+    grade_c = len([i for i in incidents if i.get('rca_grade') == 'C'])
+    grade_d = len([i for i in incidents if i.get('rca_grade') == 'D'])
+    grade_f = len([i for i in incidents if i.get('rca_grade') == 'F'])
+    
+    # Calculate average quality score
+    quality_scores = [i.get('rca_quality_score', 0) for i in incidents if i.get('rca_quality_score', 0) > 0]
+    avg_quality_score = sum(quality_scores) / len(quality_scores) if quality_scores else 0
+    
     logger.info(f"Report Summary:")
     logger.info(f"  Total incidents: {total_incidents}")
     logger.info(f"  With RCA documents: {with_rca} ({with_rca/total_incidents*100:.1f}%)")
     logger.info(f"  RCA documents analyzed: {analyzed_rca} ({analyzed_rca/total_incidents*100:.1f}%)")
     logger.info(f"  Analysis quality breakdown: High={high_quality}, Medium={medium_quality}, Low={low_quality}")
+    logger.info(f"  Quality assessments completed: {quality_assessed} ({quality_assessed/total_incidents*100:.1f}%)")
+    logger.info(f"  Quality grade distribution: A={grade_a}, B={grade_b}, C={grade_c}, D={grade_d}, F={grade_f}")
+    logger.info(f"  Average quality score: {avg_quality_score:.1f}/100")
     logger.info(f"  Missing RCA documents: {total_incidents - with_rca}")
 
 def main():
@@ -207,6 +253,7 @@ def main():
         jira_client = JiraClient()
         confluence_client = ConfluenceClient()
         rca_analyzer = RCAAnalyzer()
+        quality_analyzer = RCAQualityAnalyzer()
         
         # Test connections
         if not test_connections(jira_client, confluence_client):
@@ -230,7 +277,7 @@ def main():
         incidents = match_rca_documents(incidents, confluence_client)
         
         # Analyze RCA content
-        incidents = analyze_rca_content(incidents, confluence_client, rca_analyzer)
+        incidents = analyze_rca_content(incidents, confluence_client, rca_analyzer, quality_analyzer)
         
         # Generate output
         output_dir = os.path.join(os.path.dirname(__file__), '..', 'output')

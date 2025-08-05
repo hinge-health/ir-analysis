@@ -96,14 +96,30 @@ Build a system to pull incident data from Jira and Confluence to analyze company
 - **Option 2**: OpenAI API integration
 - **Option 3**: Local LLM (ollama/llamacpp)
 
-### Phase 5: Data Quality & Validation
-**Objective**: Ensure data completeness and accuracy
+### Phase 5: RCA Quality Assessment & Process Improvement
+**Objective**: Evaluate RCA document quality against engineering best practices and provide actionable feedback for process improvement
 **Tasks**:
-1. Validate data completeness (missing RCA docs, urgency levels)
-2. Validate RCA analysis quality and accuracy
-3. Generate comprehensive data quality report
-4. Implement error handling for API failures and LLM analysis
-5. Add logging for troubleshooting
+1. **Expert RCA Quality Analyzer**: Implement LLM-powered quality assessment using engineering best practices
+2. **Comprehensive Grading System**: Score RCAs on 7 key dimensions (0-100 scale, A-F grades)
+3. **Gap Analysis & Feedback**: Provide specific, actionable improvement recommendations
+4. **Quality Metrics Dashboard**: Generate aggregate quality insights across teams/incident types
+5. **Process Improvement Recommendations**: Identify systemic patterns and suggest RCA process enhancements
+
+**Quality Assessment Dimensions**:
+- **Timeline & Detection (15 pts)**: Clear incident timeline, detection methods, response efficiency
+- **Impact Assessment (15 pts)**: User/business impact quantification, scope definition
+- **Root Cause Analysis (25 pts)**: Depth of analysis, methodology usage (5 Whys, fishbone), technical accuracy
+- **Communication & Clarity (10 pts)**: Document structure, clarity, audience-appropriate communication
+- **Action Items & Prevention (20 pts)**: Specific remediation actions, ownership, timelines, prevention focus
+- **Process Adherence (10 pts)**: Follows structured incident response methodology
+- **Learning & Knowledge Sharing (5 pts)**: Extractable lessons, knowledge transfer value
+
+**Enhanced CSV Outputs**:
+- **RCA Quality Score**: Numerical assessment (0-100)
+- **RCA Grade**: Letter grade (A, B, C, D, F)
+- **Quality Feedback**: Specific improvement recommendations
+- **Strengths Identified**: What the RCA did exceptionally well
+- **Critical Gaps**: Most important areas for improvement
 
 ## Project Structure
 ```
@@ -112,6 +128,7 @@ incident-analysis/
 │   ├── jira_client.py          # Jira API integration
 │   ├── confluence_client.py    # Confluence API integration
 │   ├── rca_analyzer.py         # LLM-based RCA content analysis
+│   ├── rca_quality_analyzer.py # Expert RCA quality assessment & grading
 │   ├── data_processor.py       # Data extraction & processing
 │   └── main.py                 # Main execution script
 ├── config/
@@ -148,8 +165,11 @@ ATLASSIAN_API_TOKEN=your-api-token
 - ✅ Exclude duplicate and non-incident tickets
 - ✅ Match ≥95% of incidents to their RCA documents
 - ✅ Generate clean CSV with all required columns including RCA analysis
-- 🆕 Successfully analyze ≥90% of available RCA documents with LLM
-- 🆕 Extract structured incident summaries, user impact, and root causes
+- ✅ Successfully analyze ≥90% of available RCA documents with LLM
+- ✅ Extract structured incident summaries, user impact, and root causes
+- 🆕 **Phase 5**: Evaluate RCA quality using expert-level assessment criteria
+- 🆕 **Phase 5**: Generate actionable quality improvement recommendations
+- 🆕 **Phase 5**: Provide aggregate quality metrics and process improvement insights
 - ✅ Handle API errors gracefully with proper logging
 
 ## RCA Content Analysis Implementation
