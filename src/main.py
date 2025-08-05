@@ -7,9 +7,10 @@ Extract incident data from Jira and match with Confluence RCA documents
 import os
 import sys
 import logging
+import argparse
 import pandas as pd
-from datetime import datetime
-from typing import List, Dict
+from datetime import datetime, timedelta
+from typing import List, Dict, Optional
 
 # Add src directory to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -20,6 +21,7 @@ from rca_analyzer import RCAAnalyzer
 from rca_quality_analyzer import RCAQualityAnalyzer
 from business_impact_analyzer import BusinessImpactAnalyzer
 from technical_analyzer import TechnicalAnalyzer
+from json_exporter import IncidentJSONExporter
 
 def setup_logging():
     """Set up logging configuration"""
@@ -91,7 +93,7 @@ def match_rca_documents(incidents: List[Dict], confluence_client: ConfluenceClie
 
 def analyze_rca_content(incidents: List[Dict], confluence_client: ConfluenceClient, rca_analyzer: RCAAnalyzer, 
                        quality_analyzer: RCAQualityAnalyzer, business_analyzer: BusinessImpactAnalyzer, 
-                       technical_analyzer: TechnicalAnalyzer) -> List[Dict]:
+                       technical_analyzer: TechnicalAnalyzer, preserve_html: bool = False) -> List[Dict]:
     """Analyze RCA document content and extract insights"""
     logger = logging.getLogger(__name__)
     
@@ -145,10 +147,19 @@ def analyze_rca_content(incidents: List[Dict], confluence_client: ConfluenceClie
                 failed_count += 1
                 continue
             
+            # Preserve HTML content for JSON export if requested
+            if preserve_html:
+                incident['rca_content_html'] = rca_content_data['content_html']
+                incident['rca_title'] = rca_content_data.get('title', '')
+            
             # Clean HTML content for analysis
             cleaned_content = confluence_client.clean_html_content(
                 rca_content_data['content_html']
             )
+            
+            # Preserve cleaned text content for JSON export
+            if preserve_html:
+                incident['rca_content_text'] = cleaned_content
             
             if len(cleaned_content.strip()) < 50:
                 logger.warning(f"RCA content too short for analysis: {ticket_key}")
@@ -334,13 +345,121 @@ def generate_csv_report(incidents: List[Dict], output_file: str) -> None:
     logger.info(f"  ")
     logger.info(f"  Missing RCA documents: {total_incidents - with_rca}")
 
+def parse_arguments():
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser(
+        description='Incident Analysis Tool - Extract and analyze incident data from Jira and Confluence',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python main.py                              # Standard CSV export
+  python main.py --json-export                # Export JSON with all data
+  python main.py --json-export --recent 10    # Export JSON for 10 most recent incidents
+  python main.py --json-export --since 2024-01-15  # Export incidents since specific date
+  python main.py --json-export --output-json /path/to/output.json  # Custom JSON output path
+        """
+    )
+    
+    # Output format options
+    parser.add_argument('--json-export', action='store_true',
+                       help='Export data as JSON instead of CSV (includes full RCA content)')
+    
+    parser.add_argument('--output-json', type=str,
+                       help='Path for JSON output file (default: auto-generated)')
+    
+    # Filtering options
+    parser.add_argument('--recent', type=int, metavar='N',
+                       help='Export only the N most recent incidents')
+    
+    parser.add_argument('--since', type=str, metavar='YYYY-MM-DD',
+                       help='Export incidents since specific date (format: YYYY-MM-DD)')
+    
+    # Standard options
+    parser.add_argument('--output-csv', type=str,
+                       help='Path for CSV output file (default: auto-generated)')
+    
+    return parser.parse_args()
+
+def filter_incidents_by_date(incidents: List[Dict], since_date: str) -> List[Dict]:
+    """Filter incidents to only include those since the specified date"""
+    logger = logging.getLogger(__name__)
+    
+    try:
+        cutoff_date = datetime.strptime(since_date, '%Y-%m-%d')
+        logger.info(f"Filtering incidents since {since_date}")
+        
+        filtered_incidents = []
+        for incident in incidents:
+            created_str = incident.get('created', '')
+            if created_str:
+                try:
+                    # Parse various date formats that might come from Jira
+                    created_date = None
+                    for fmt in ['%Y-%m-%dT%H:%M:%S.%f%z', '%Y-%m-%dT%H:%M:%S%z', '%Y-%m-%d']:
+                        try:
+                            created_date = datetime.strptime(created_str.split('.')[0].replace('Z', '+00:00'), fmt.replace('%f', '').replace('%z', ''))
+                            break
+                        except ValueError:
+                            continue
+                    
+                    if created_date and created_date >= cutoff_date:
+                        filtered_incidents.append(incident)
+                        
+                except Exception as e:
+                    logger.warning(f"Could not parse date for {incident.get('ticket_key', 'UNKNOWN')}: {created_str}")
+                    continue
+        
+        logger.info(f"Filtered {len(incidents)} incidents to {len(filtered_incidents)} since {since_date}")
+        return filtered_incidents
+        
+    except ValueError as e:
+        logger.error(f"Invalid date format '{since_date}'. Please use YYYY-MM-DD format.")
+        raise
+
+def filter_recent_incidents(incidents: List[Dict], count: int) -> List[Dict]:
+    """Filter to get the N most recent incidents"""
+    logger = logging.getLogger(__name__)
+    
+    # Sort incidents by created date (most recent first)
+    def parse_date(incident):
+        created_str = incident.get('created', '')
+        if not created_str:
+            return datetime.min
+        
+        try:
+            # Parse date string - handle various formats
+            for fmt in ['%Y-%m-%dT%H:%M:%S.%f%z', '%Y-%m-%dT%H:%M:%S%z', '%Y-%m-%d']:
+                try:
+                    return datetime.strptime(created_str.split('.')[0].replace('Z', '+00:00'), fmt.replace('%f', '').replace('%z', ''))
+                except ValueError:
+                    continue
+            return datetime.min
+        except Exception:
+            return datetime.min
+    
+    sorted_incidents = sorted(incidents, key=parse_date, reverse=True)
+    filtered_incidents = sorted_incidents[:count]
+    
+    logger.info(f"Filtered to {len(filtered_incidents)} most recent incidents (from {len(incidents)} total)")
+    return filtered_incidents
+
 def main():
     """Main execution function"""
+    # Parse command line arguments
+    args = parse_arguments()
+    
     logger = setup_logging()
     logger.info("Starting Incident Analysis Tool")
     
+    if args.json_export:
+        logger.info("JSON export mode enabled")
+    if args.recent:
+        logger.info(f"Filtering to {args.recent} most recent incidents")
+    if args.since:
+        logger.info(f"Filtering incidents since {args.since}")
+    
     try:
-        # Initialize clients and analyzers (Phase 6 enhanced)
+        # Initialize clients and analyzers (Phase 7 enhanced)
         logger.info("Initializing API clients and analyzers...")
         jira_client = JiraClient()
         confluence_client = ConfluenceClient()
@@ -348,6 +467,9 @@ def main():
         quality_analyzer = RCAQualityAnalyzer()
         business_analyzer = BusinessImpactAnalyzer()
         technical_analyzer = TechnicalAnalyzer()
+        
+        # Initialize JSON exporter if needed
+        json_exporter = IncidentJSONExporter() if args.json_export else None
         
         # Test connections
         if not test_connections(jira_client, confluence_client):
@@ -367,21 +489,65 @@ def main():
             logger.error("No incidents found!")
             return 1
         
+        # Apply filtering if requested
+        original_count = len(incidents)
+        export_type = "full"
+        date_range = None
+        
+        if args.since:
+            incidents = filter_incidents_by_date(incidents, args.since)
+            export_type = f"since_{args.since}"
+            date_range = f"{args.since} to present"
+        
+        if args.recent:
+            incidents = filter_recent_incidents(incidents, args.recent)
+            export_type = f"recent_{args.recent}"
+            if not date_range:
+                # Calculate date range from filtered incidents
+                if incidents:
+                    dates = [i.get('created', '') for i in incidents if i.get('created')]
+                    if dates:
+                        dates.sort()
+                        date_range = f"{dates[0].split('T')[0]} to {dates[-1].split('T')[0]}"
+        
+        logger.info(f"Processing {len(incidents)} incidents (filtered from {original_count})")
+        
+        if not incidents:
+            logger.error("No incidents found after filtering!")
+            return 1
+        
         # Match with RCA documents
         incidents = match_rca_documents(incidents, confluence_client)
         
-        # Analyze RCA content (Phase 6 enhanced with business and technical analysis)
+        # Analyze RCA content (Phase 7 enhanced - preserve HTML for JSON export)
+        preserve_html = args.json_export
         incidents = analyze_rca_content(incidents, confluence_client, rca_analyzer, quality_analyzer, 
-                                       business_analyzer, technical_analyzer)
+                                       business_analyzer, technical_analyzer, preserve_html)
         
         # Generate output
         output_dir = os.path.join(os.path.dirname(__file__), '..', 'output')
         os.makedirs(output_dir, exist_ok=True)
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_file = os.path.join(output_dir, f'incidents_2024_enhanced_{timestamp}.csv')
         
-        generate_csv_report(incidents, output_file)
+        if args.json_export:
+            # JSON export
+            if args.output_json:
+                json_output_file = args.output_json
+            else:
+                json_output_file = os.path.join(output_dir, f'incidents_data_{export_type}_{timestamp}.json')
+            
+            json_exporter.export_incidents_json(incidents, json_output_file, export_type, date_range)
+            logger.info(f"JSON export completed: {json_output_file}")
+        else:
+            # Standard CSV export
+            if args.output_csv:
+                csv_output_file = args.output_csv
+            else:
+                csv_output_file = os.path.join(output_dir, f'incidents_2024_enhanced_{timestamp}.csv')
+            
+            generate_csv_report(incidents, csv_output_file)
+            logger.info(f"CSV export completed: {csv_output_file}")
         
         logger.info("Incident analysis completed successfully!")
         return 0

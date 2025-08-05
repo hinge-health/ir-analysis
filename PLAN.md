@@ -123,15 +123,83 @@ Build a system to pull incident data from Jira and Confluence to analyze company
 
 **Results**: 91/91 RCA documents assessed, average quality score 90.6/100, grade distribution A=61, B=23, C=7
 
-### Phase 6: Dual-Audience CSV Optimization & Enhanced Analytics
+### Phase 6: Dual-Audience CSV Optimization & Enhanced Analytics ✅ **COMPLETED**
 **Objective**: Optimize CSV structure and analytics for both IC engineers and engineering leadership (CTO-level) with improved scoring calibration and business impact analysis
 **Tasks**:
-1. **Scoring Recalibration**: Implement more critical assessment to achieve realistic grade distribution (target: A=15%, B=30%, C=40%, D=15%)
-2. **Dual-Audience Structure**: Create CSV optimized for both technical teams and executive leadership
-3. **Business Impact Analytics**: Add quantified business impact, customer impact, and revenue estimation columns
-4. **Technical Analysis Enhancement**: Add technical categorization, detection/resolution times, automation opportunities
-5. **Enhanced Feedback System**: Replace generic feedback with specific, actionable recommendations
-6. **Leadership Dashboard Metrics**: Add executive-level KPIs and trend analysis
+1. **Scoring Recalibration**: Implement more critical assessment to achieve realistic grade distribution (target: A=15%, B=30%, C=40%, D=15%) ✅
+2. **Dual-Audience Structure**: Create CSV optimized for both technical teams and executive leadership ✅
+3. **Business Impact Analytics**: Add quantified business impact, customer impact, and revenue estimation columns ✅
+4. **Technical Analysis Enhancement**: Add technical categorization, detection/resolution times, automation opportunities ✅
+5. **Enhanced Feedback System**: Replace generic feedback with specific, actionable recommendations ✅
+6. **Leadership Dashboard Metrics**: Add executive-level KPIs and trend analysis ✅
+
+### Phase 7: Raw Data JSON Export for LLM Analysis 🆕 **IN PROGRESS**
+**Objective**: Provide structured JSON export of all incident and RCA data for advanced LLM analysis and custom processing
+**Tasks**:
+1. **JSON Data Exporter**: Create comprehensive JSON export with all raw incident and RCA data
+2. **Command Line Interface**: Add `--json-export` flag with filtering options
+3. **Structured Data Format**: Design JSON schema optimized for LLM consumption
+4. **Filtering Capabilities**: Support for date ranges and recent incident limiting
+5. **Raw Content Preservation**: Include full HTML RCA content for deep analysis
+6. **Metadata Enhancement**: Add technical metadata for better LLM context
+
+**Command Line Options**:
+- `--json-export`: Enable JSON export mode
+- `--recent N`: Export only N most recent incidents
+- `--since DATE`: Export incidents since specific date (YYYY-MM-DD)
+- `--output-json PATH`: Specify JSON output file path
+
+**JSON Structure Design**:
+```json
+{
+  "export_metadata": {
+    "timestamp": "2024-01-15T10:30:00Z",
+    "total_incidents": 91,
+    "date_range": "2024-01-01 to 2024-01-15",
+    "export_type": "recent_10"
+  },
+  "incidents": [
+    {
+      "jira_data": {
+        "ticket_key": "IR-364",
+        "summary": "...",
+        "priority": "P1",
+        "created_date": "2024-01-15T09:00:00Z",
+        "status": "Closed",
+        "description": "Full Jira description...",
+        "custom_fields": {
+          "incident_urgency": "P1",
+          "pods_engaged": "Platform, Mobile"
+        },
+        "comments": [...],
+        "metadata": {
+          "reporter": "...",
+          "assignee": "...",
+          "labels": [...]
+        }
+      },
+      "confluence_data": {
+        "rca_url": "https://...",
+        "title": "RCA IR-364 ...",
+        "content_html": "Full HTML content...",
+        "content_text": "Clean text content...",
+        "page_metadata": {
+          "created_date": "...",
+          "modified_date": "...",
+          "author": "...",
+          "space": "RND"
+        }
+      },
+      "analysis_results": {
+        "content_analysis": {...},
+        "quality_assessment": {...},
+        "business_impact": {...},
+        "technical_analysis": {...}
+      }
+    }
+  ]
+}
+```
 
 **New CSV Structure (22 columns)**:
 
