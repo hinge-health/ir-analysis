@@ -64,13 +64,16 @@ class ConfluenceClient:
             
             for result in results:
                 title = result.get('title', '')
-                if title.startswith(f"RCA {ticket_key}"):
-                    # Construct the full URL
+                if title.startswith(f"RCA {ticket_key}") or f"RCA: {ticket_key}" in title:
+                    # Extract page ID from nested content object if needed
                     page_id = result.get('id')
-                    page_url = f"{self.confluence_url}/pages/viewpage.action?pageId={page_id}"
+                    if not page_id and 'content' in result:
+                        page_id = result['content'].get('id')
                     
-                    self.logger.info(f"Found RCA document for {ticket_key}: {title}")
-                    return page_url
+                    if page_id:
+                        page_url = f"{self.confluence_url}/pages/viewpage.action?pageId={page_id}"
+                        self.logger.info(f"Found RCA document for {ticket_key}: {title}")
+                        return page_url
             
             # If not found by title search, try content search
             self.logger.warning(f"RCA document not found by title for {ticket_key}, trying content search")
@@ -127,7 +130,14 @@ class ConfluenceClient:
             
             for result in results:
                 title = result.get('title', '')
+                # Extract page ID from nested content object if needed
                 page_id = result.get('id')
+                if not page_id and 'content' in result:
+                    page_id = result['content'].get('id')
+                
+                if not page_id:
+                    continue
+                    
                 page_url = f"{self.confluence_url}/pages/viewpage.action?pageId={page_id}"
                 
                 # Extract ticket key from title
